@@ -65,6 +65,7 @@ class TemporalShift(nn.Module):
         Returns:
             torch.Tensor: The output of the module.
         """
+        #print(x.size(),x.get_device())
         x = self.shift(x, self.num_segments, shift_div=self.shift_div)
         return self.net(x)
 

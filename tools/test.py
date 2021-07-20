@@ -2,6 +2,8 @@ import argparse
 import os
 import os.path as osp
 import warnings
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mmcv
 import torch
