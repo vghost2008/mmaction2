@@ -12,7 +12,8 @@ from tools.data.parse_file_list import (parse_directory, parse_diving48_splits,
                                         parse_kinetics_splits,
                                         parse_mit_splits, parse_mmit_splits,
                                         parse_sthv1_splits, parse_sthv2_splits,
-                                        parse_ucf101_splits)
+                                        parse_ucf101_splits,
+                                        parse_boephone_splits)
 
 
 def parse_args():
@@ -23,7 +24,7 @@ def parse_args():
         choices=[
             'ucf101', 'kinetics400', 'kinetics600', 'kinetics700', 'thumos14',
             'sthv1', 'sthv2', 'mit', 'mmit', 'activitynet', 'hmdb51', 'jester',
-            'diving48'
+            'diving48','boephone'
         ],
         help='dataset to be built file list')
     parser.add_argument(
@@ -193,6 +194,8 @@ def main():
 
     if args.dataset == 'ucf101':
         splits = parse_ucf101_splits(args.level)
+    elif args.dataset == 'boephone':
+        splits = parse_boephone_splits()
     elif args.dataset == 'sthv1':
         splits = parse_sthv1_splits(args.level)
     elif args.dataset == 'sthv2':
@@ -240,7 +243,9 @@ def main():
                 with open(osp.join(out_path, val_name), 'w') as f:
                     json.dump(val_list, f)
     else:
+        print(splits[0])
         lists = build_file_list(splits[0], frame_info, shuffle=args.shuffle)
+        print(lists)
 
         if args.subset == 'train':
             ind = 0

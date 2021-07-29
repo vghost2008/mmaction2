@@ -20,7 +20,9 @@ class RawframeDataset(BaseDataset):
     Example of a annotation file:
 
     .. code-block:: txt
-
+        #wjn
+        #dir path; total frames; label of video
+        #images in dir is start whith index 1
         some/directory-1 163 1
         some/directory-2 122 1
         some/directory-3 258 2

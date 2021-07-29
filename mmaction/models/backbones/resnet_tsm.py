@@ -72,7 +72,9 @@ class TemporalShift(nn.Module):
     @staticmethod
     def shift(x, num_segments, shift_div=3):
         """Perform temporal shift operation on the feature.
-
+        #wjn
+        each time only move the first 1/shift_div channel data to the old data and the mid 1/shift_div of channel data to 
+        the new data
         Args:
             x (torch.Tensor): The input feature to be shifted.
             num_segments (int): Number of frame segments.
@@ -93,20 +95,24 @@ class TemporalShift(nn.Module):
 
         # split c channel into three parts:
         # left_split, mid_split, right_split
-        left_split = x[:, :, :fold, :]
-        mid_split = x[:, :, fold:2 * fold, :]
-        right_split = x[:, :, 2 * fold:, :]
+        left_split = x[:, :, :fold, :]  #first 1/shift_div channels wjn
+        mid_split = x[:, :, fold:2 * fold, :] #mid 2/shift_div channels wtn
+        right_split = x[:, :, 2 * fold:, :] #last (shift_div-2)/shift_div channels wjn
 
         # can't use torch.zeros(*A.shape) or torch.zeros_like(A)
         # because array on caffe inference must be got by computing
 
         # shift left on num_segments channel in `left_split`
+        #wjn
+        #left move out the oldest data
         zeros = left_split - left_split
         blank = zeros[:, :1, :, :]
         left_split = left_split[:, 1:, :, :]
         left_split = torch.cat((left_split, blank), 1)
 
         # shift right on num_segments channel in `mid_split`
+        #wjn
+        #mid move out the newest data
         zeros = mid_split - mid_split
         blank = zeros[:, :1, :, :]
         mid_split = mid_split[:, :-1, :, :]
@@ -214,6 +220,8 @@ class ResNetTSM(ResNet):
 
                 Returns:
                     nn.Module: The shifted blocks.
+                #wj
+                There is no different for different layers
                 """
                 blocks = list(stage.children())
                 for i, b in enumerate(blocks):

@@ -130,6 +130,39 @@ def parse_ucf101_splits(level):
 
     return splits
 
+def parse_boephone_splits():
+    """Parse boe phone dataset into "train", "val", "test" splits.
+
+    Args:
+        level (int): Directory level of data. 1 for the single-level directory,
+            2 for the two-level directory.
+
+    Returns:
+        list: "train", "val", "test" splits of UCF-101.
+    """
+    class_index_file = 'data/boephone/annotations/classInd.txt'
+    train_file_dir = 'data/boephone/training/images'
+    test_file_dir = 'data/boephone/test/images'
+
+    with open(class_index_file, 'r') as fin:
+        class_index = [x.strip().split() for x in fin]
+    class_mapping = {x[1]: int(x[0]) - 1 for x in class_index}
+
+    def get_files(dir_path):
+        res = []
+        for k in class_mapping.keys():
+            pdir = os.path.join(dir_path,k)
+            for x in os.listdir(os.path.join(dir_path,k)):
+                dir_name = os.path.join(pdir,x)
+                if os.path.isdir(dir_name):
+                    res.append((dir_name,class_mapping[k]))
+        return res
+    splits = []
+    train_list = get_files(train_file_dir)
+    test_list = get_files(test_file_dir)
+    splits.append((train_list, test_list))
+
+    return splits
 
 def parse_jester_splits(level):
     """Parse Jester into "train", "val" splits.
