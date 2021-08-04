@@ -10,12 +10,12 @@ model = dict(
 
 # dataset settings
 dataset_type = 'RawframeDataset'
-data_root = 'data/boephone/'
-data_root_val = 'data/boephone/'
+data_root = 'data/boefalldown/'
+data_root_val = 'data/boefalldown/'
 split = 1  # official train/test splits. valid numbers: 1, 2, 3
-ann_file_train = f'data/boephone/train_rawframes.txt'
-ann_file_val = f'data/boephone/test_rawframes.txt'
-ann_file_test = f'data/boephone/test_rawframes.txt'
+ann_file_train = f'data/boefalldown/train_rawframes.txt'
+ann_file_val = f'data/boefalldown/test_rawframes.txt'
+ann_file_test = f'data/boefalldown/test_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 
@@ -93,8 +93,8 @@ optimizer = dict(
 )
 # learning policy
 lr_config = dict(policy='step', step=[10, 20])
-total_epochs = 120
+total_epochs = 20
 
 load_from = "weights/tsm_r50_256p_1x1x8_50e_kinetics400_rgb_20200726-020785e2.pth"
 # runtime settings
-work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boephone/'
+work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boefalldown/'

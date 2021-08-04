@@ -1257,7 +1257,7 @@ class RawFrameDecode:
         mmcv.use_backend(self.decoding_backend)
 
         directory = results['frame_dir']
-        filename_tmpl = results['filename_tmpl']
+        filename_tmpl = results.get('filename_tmpl',None)
         modality = results['modality']
 
         if self.file_client is None:
@@ -1269,27 +1269,41 @@ class RawFrameDecode:
             results['frame_inds'] = np.squeeze(results['frame_inds'])
 
         offset = results.get('offset', 0)
-
-        for frame_idx in results['frame_inds']:
-            frame_idx += offset
-            if modality == 'RGB':
-                filepath = osp.join(directory, filename_tmpl.format(frame_idx))
-                img_bytes = self.file_client.get(filepath)
-                # Get frame with channel order RGB directly.
-                cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
-                imgs.append(cur_frame)
-            elif modality == 'Flow':
-                x_filepath = osp.join(directory,
-                                      filename_tmpl.format('x', frame_idx))
-                y_filepath = osp.join(directory,
-                                      filename_tmpl.format('y', frame_idx))
-                x_img_bytes = self.file_client.get(x_filepath)
-                x_frame = mmcv.imfrombytes(x_img_bytes, flag='grayscale')
-                y_img_bytes = self.file_client.get(y_filepath)
-                y_frame = mmcv.imfrombytes(y_img_bytes, flag='grayscale')
-                imgs.extend([x_frame, y_frame])
-            else:
-                raise NotImplementedError
+        #wj
+        if isinstance(directory,list):
+            all_files = directory
+            del directory
+            for frame_idx in results['frame_inds']:
+                frame_idx += offset
+                if modality == 'RGB':
+                    filepath = all_files[frame_idx-1]
+                    img_bytes = self.file_client.get(filepath)
+                    # Get frame with channel order RGB directly.
+                    cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+                    imgs.append(cur_frame)
+                else:
+                    raise NotImplementedError
+        else:    
+            for frame_idx in results['frame_inds']:
+                frame_idx += offset
+                if modality == 'RGB':
+                    filepath = osp.join(directory, filename_tmpl.format(frame_idx))
+                    img_bytes = self.file_client.get(filepath)
+                    # Get frame with channel order RGB directly.
+                    cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+                    imgs.append(cur_frame)
+                elif modality == 'Flow':
+                    x_filepath = osp.join(directory,
+                                          filename_tmpl.format('x', frame_idx))
+                    y_filepath = osp.join(directory,
+                                          filename_tmpl.format('y', frame_idx))
+                    x_img_bytes = self.file_client.get(x_filepath)
+                    x_frame = mmcv.imfrombytes(x_img_bytes, flag='grayscale')
+                    y_img_bytes = self.file_client.get(y_filepath)
+                    y_frame = mmcv.imfrombytes(y_img_bytes, flag='grayscale')
+                    imgs.extend([x_frame, y_frame])
+                else:
+                    raise NotImplementedError
 
         results['imgs'] = imgs
         results['original_shape'] = imgs[0].shape[:2]

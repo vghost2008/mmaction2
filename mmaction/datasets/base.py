@@ -169,8 +169,9 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
             metric_options['top_k_accuracy'] = dict(
                 metric_options['top_k_accuracy'], **deprecated_kwargs)
 
-        if not isinstance(results, list):
+        if not isinstance(results, (list,dict)):
             raise TypeError(f'results must be a list, but got {type(results)}')
+        results = results if not isinstance(results,dict) else results['data']
         assert len(results) == len(self), (
             f'The length of results is not equal to the dataset len: '
             f'{len(results)} != {len(self)}')
@@ -203,7 +204,6 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                                     f'but got {type(topk)}')
                 if isinstance(topk, int):
                     topk = (topk, )
-
                 top_k_acc = top_k_accuracy(results, gt_labels, topk)
                 log_msg = []
                 for k, acc in zip(topk, top_k_acc):

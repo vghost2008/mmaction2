@@ -10,7 +10,7 @@ import torch
 import torch.distributed as dist
 from mmcv.runner import get_dist_info
 
-try:
+'''try:
     from mmcv.engine import (single_gpu_test, multi_gpu_test,
                              collect_results_gpu, collect_results_cpu)
     from_mmcv = True
@@ -19,7 +19,8 @@ except (ImportError, ModuleNotFoundError):
         'DeprecationWarning: single_gpu_test, multi_gpu_test, '
         'collect_results_cpu, collect_results_gpu from mmaction2 will be '
         'deprecated. Please install mmcv through master branch.')
-    from_mmcv = False
+    from_mmcv = False'''
+from_mmcv = False
 
 if not from_mmcv:
 
@@ -43,7 +44,15 @@ if not from_mmcv:
         for data in data_loader:
             with torch.no_grad():
                 result = model(return_loss=False, **data)
-            results.extend(result)
+            if isinstance(result,dict) and len(results) == 0:
+                results = {}
+                for k,v in result.items():
+                    results[k] = list(v)
+            elif isinstance(result,dict):
+                for k,v in result.items():
+                    results[k].extend(v)
+            else:
+                results.extend(result)
 
             # use the first key as main key to calculate the batch size
             batch_size = len(next(iter(data.values())))

@@ -255,7 +255,15 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
                 imgs, label = self.blending(imgs, label)
             return self.forward_train(imgs, label, **kwargs)
 
-        return self.forward_test(imgs, **kwargs)
+        res_dict0 = {}
+        if 'frame_idx' in kwargs:
+            res_dict0['frame_idx'] = kwargs.pop('frame_idx')
+        res = self.forward_test(imgs, **kwargs)
+        if len(res_dict0) != 0:
+            res = {'data':res}
+            res.update(res_dict0)
+        return res
+        
 
     def train_step(self, data_batch, optimizer, **kwargs):
         """The iteration step during training.

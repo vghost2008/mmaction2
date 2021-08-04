@@ -1,6 +1,6 @@
 import copy
 import os.path as osp
-
+import numpy as np
 import torch
 
 from .base import BaseDataset
@@ -19,6 +19,7 @@ class RawframeDataset(BaseDataset):
     the label of a video, which are split with a whitespace.
     Example of a annotation file:
 
+        label in range [0,NUM_CLASSES-1]
     .. code-block:: txt
         #wjn
         #dir path; total frames; label of video
@@ -182,4 +183,10 @@ class RawframeDataset(BaseDataset):
             onehot[results['label']] = 1.
             results['label'] = onehot
 
-        return self.pipeline(results)
+        res = self.pipeline(results)
+        res['frame_idx'] = idx
+        return res
+
+    def get_frame_dirs(self,idxs):
+        idxs = idxs.numpy()
+        dirs = [self.video_infos[x]['frame_dir'] for x in idxs]
