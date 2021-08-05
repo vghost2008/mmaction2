@@ -3,6 +3,7 @@ log_config = dict(
     interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
+        dict(type='TBSummary',log_dir='tblog'),
         # dict(type='TensorboardLoggerHook'),
     ])
 # runtime settings

@@ -1,4 +1,5 @@
 import random
+import imgaug.augmenters as iaa
 import warnings
 from collections.abc import Sequence
 from distutils.version import LooseVersion
@@ -9,6 +10,7 @@ from torch.nn.modules.utils import _pair
 
 from ..builder import PIPELINES
 from .formating import to_tensor
+import cv2
 
 
 def _combine_quadruple(a, b):
@@ -616,6 +618,198 @@ class RandomScale:
                     f'scales={self.scales}, mode={self.mode})')
         return repr_str
 
+#wj
+@PIPELINES.register_module()
+class RandomCropAroundBBoxes:
+    """Vanilla square random crop that specifics the output size.
+
+    Required keys in results are "img_shape", "keypoint" (optional), "imgs"
+    (optional), added or modified keys are "keypoint", "imgs", "lazy"; Required
+    keys in "lazy" are "flip", "crop_bbox", added or modified key is
+    "crop_bbox".
+
+    Args:
+        size (int): The output size of the images.
+        lazy (bool): Determine whether to apply lazy operation. Default: False.
+    """
+
+    def __init__(self, size, lazy=False,random_crop=True):
+        if not isinstance(size, int):
+            raise TypeError(f'Size must be an int, but got {type(size)}')
+        self.size = size
+        self.lazy = lazy
+        self.random_crop = random_crop
+
+    @staticmethod
+    def _crop_kps(kps, crop_bbox):
+        return kps - crop_bbox[:2]
+
+    @staticmethod
+    def _crop_imgs(imgs, crop_bbox):
+        x1, y1, x2, y2 = crop_bbox
+        return [img[y1:y2, x1:x2] for img in imgs]
+
+    @staticmethod
+    def _box_crop(box, crop_bbox):
+        """Crop the bounding boxes according to the crop_bbox.
+
+        Args:
+            box (np.ndarray): The bounding boxes.
+            crop_bbox(np.ndarray): The bbox used to crop the original image.
+        """
+
+        x1, y1, x2, y2 = crop_bbox
+        img_w, img_h = x2 - x1, y2 - y1
+
+        box_ = box.copy()
+        box_[..., 0::2] = np.clip(box[..., 0::2] - x1, 0, img_w - 1)
+        box_[..., 1::2] = np.clip(box[..., 1::2] - y1, 0, img_h - 1)
+        return box_
+
+    def _all_box_crop(self, results, crop_bbox):
+        """Crop the gt_bboxes and proposals in results according to crop_bbox.
+
+        Args:
+            results (dict): All information about the sample, which contain
+                'gt_bboxes' and 'proposals' (optional).
+            crop_bbox(np.ndarray): The bbox used to crop the original image.
+        """
+        results['gt_bboxes'] = self._box_crop(results['gt_bboxes'], crop_bbox)
+        if 'proposals' in results and results['proposals'] is not None:
+            assert results['proposals'].shape[1] == 4
+            results['proposals'] = self._box_crop(results['proposals'],
+                                                  crop_bbox)
+        return results
+
+    def get_random_envlop(self,results,img_w,img_h):
+        bboxes = np.array(results['bboxes'])
+        idxs = results['frame_inds']
+        offset = results.get('offset', 0)
+        idxs = idxs+offset-1
+        bboxes = bboxes[idxs.tolist()]
+        minx = int(np.min(bboxes[:,0]))
+        miny = int(np.min(bboxes[:,1]))
+        maxx = int(np.max(bboxes[:,2]))
+        maxy = int(np.max(bboxes[:,2]))
+        cx = (minx+maxx)/2
+        cy = (miny+maxy)/2
+        size = min(min(img_h,img_w),self.size)
+        if maxx-minx<self.size:
+            delta = (self.size-(maxx-minx))//4
+            w = self.size
+            if self.random_crop:
+                cx = cx+random.randint(-delta,delta)
+        else:
+            w = min(size,maxx-minx)
+        if maxy-miny<self.size:
+            delta = (self.size-(maxy-miny))//4
+            if self.random_crop:
+                cy = cy+random.randint(-delta,delta)
+            h = self.size
+        else:
+            h = min(size,maxy-miny)
+        #
+        h = max(h,w)
+        w = h
+        #
+        minx = cx-w//2
+        maxx = cx+w//2
+        miny = cy-h//2
+        maxy = cy+h//2
+        if minx<0:
+            minx = 0
+            maxx = min(minx+w,img_w-1)
+        elif maxx>=img_w:
+            maxx = img_w-1
+            minx = max(0,maxx-w)
+        if miny<0:
+            miny = 0
+            maxy = min(miny+h,img_h-1)
+        elif maxy>=img_h:
+            maxy = img_h-1
+            miny = max(0,maxy-h)
+        bbox = [minx,miny,maxx,maxy]
+        return [int(x) for x in bbox]
+
+    def __call__(self, results):
+        """Performs the RandomCrop augmentation.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        _init_lazy_if_proper(results, self.lazy)
+        if 'keypoint' in results:
+            assert not self.lazy, ('Keypoint Augmentations are not compatible '
+                                   'with lazy == True')
+
+        img_h, img_w = results['img_shape']
+        envlop = self.get_random_envlop(results,img_w,img_h)
+        y_offset = envlop[1]
+        x_offset = envlop[0]
+        size_x = envlop[2]-envlop[0]
+        size_y = envlop[3]-envlop[1]
+
+        if 'crop_quadruple' not in results:
+            results['crop_quadruple'] = np.array(
+                [0, 0, 1, 1],  # x, y, w, h
+                dtype=np.float32)
+
+        x_ratio, y_ratio = x_offset / img_w, y_offset / img_h
+        w_ratio, h_ratio = size_x/ img_w, size_y/ img_h
+
+        old_crop_quadruple = results['crop_quadruple']
+        old_x_ratio, old_y_ratio = old_crop_quadruple[0], old_crop_quadruple[1]
+        old_w_ratio, old_h_ratio = old_crop_quadruple[2], old_crop_quadruple[3]
+        new_crop_quadruple = [
+            old_x_ratio + x_ratio * old_w_ratio,
+            old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
+            h_ratio * old_x_ratio
+        ]
+        results['crop_quadruple'] = np.array(
+            new_crop_quadruple, dtype=np.float32)
+
+        new_h, new_w = size_y, size_x
+
+        crop_bbox = envlop
+        results['crop_bbox'] = crop_bbox
+
+        results['img_shape'] = (new_h, new_w)
+
+        if not self.lazy:
+            if 'keypoint' in results:
+                results['keypoint'] = self._crop_kps(results['keypoint'],
+                                                     crop_bbox)
+            if 'imgs' in results:
+                results['imgs'] = self._crop_imgs(results['imgs'], crop_bbox)
+        else:
+            lazyop = results['lazy']
+            if lazyop['flip']:
+                raise NotImplementedError('Put Flip at last for now')
+
+            # record crop_bbox in lazyop dict to ensure only crop once in Fuse
+            lazy_left, lazy_top, lazy_right, lazy_bottom = lazyop['crop_bbox']
+            left = x_offset * (lazy_right - lazy_left) / img_w
+            right = (x_offset + new_w) * (lazy_right - lazy_left) / img_w
+            top = y_offset * (lazy_bottom - lazy_top) / img_h
+            bottom = (y_offset + new_h) * (lazy_bottom - lazy_top) / img_h
+            lazyop['crop_bbox'] = np.array([(lazy_left + left),
+                                            (lazy_top + top),
+                                            (lazy_left + right),
+                                            (lazy_top + bottom)],
+                                           dtype=np.float32)
+
+        # Process entity boxes
+        if 'gt_bboxes' in results:
+            assert not self.lazy
+            results = self._all_box_crop(results, results['crop_bbox'])
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}(size={self.size}, '
+                    f'lazy={self.lazy})')
+        return repr_str
 
 @PIPELINES.register_module()
 class RandomCrop:
@@ -1286,6 +1480,26 @@ class RandomRescale:
 
 
 @PIPELINES.register_module()
+class Cutout:
+    def __init__(self,nb_iterations=1,
+                 position="uniform",
+                 size=0.04,
+                 squared=True,
+                 fill_mode="constant",
+                 cval=128,
+                 fill_per_channel=False):
+        self.cutout = iaa.Cutout(nb_iterations=nb_iterations,
+                 position=position,
+                 size=size,
+                 squared=squared,
+                 fill_mode=fill_mode,
+                 cval=cval,
+                 fill_per_channel=fill_per_channel)
+    def __call__(self, results):
+        results['imgs'] = self.cutout.augment_images(results['imgs'])
+        return results
+
+@PIPELINES.register_module()
 class Flip:
     """Flip the input images with a probability.
 
@@ -1430,6 +1644,78 @@ class Flip:
             f'flip_ratio={self.flip_ratio}, direction={self.direction}, '
             f'flip_label_map={self.flip_label_map}, lazy={self.lazy})')
         return repr_str
+
+
+#wj
+@PIPELINES.register_module()
+class RotationTransform:
+    """
+    This method returns a copy of this image, rotated the given
+    number of degrees counter clockwise around its center.
+    """
+
+    def __init__(self, max_angle,interp=None):
+        """
+        Args:
+            h, w (int): original image size
+            angle (float): degrees for rotation
+            center (tuple (width, height)): coordinates of the rotation center
+                if left to None, the center will be fit to the center of each image
+                center has no effect if expand=True because it only affects shifting
+            interp: cv2 interpolation method, default cv2.INTER_LINEAR
+        """
+        if interp is None:
+            interp = cv2.INTER_LINEAR
+        self.interp = interp
+        self.max_angle = max_angle
+
+    def apply_image(self, img, interp=None):
+        """
+        img should be a numpy array, formatted as Height * Width * Nchannels
+        """
+        if len(img) == 0 or self.angle % 360 == 0:
+            return img
+        interp = interp if interp is not None else self.interp
+        return cv2.warpAffine(img, self.rm_image, (self.w, self.h), flags=interp)
+
+    def apply_coords(self, coords):
+        """
+        coords should be a N * 2 array-like, containing N couples of (x, y) points
+        """
+        coords = np.asarray(coords, dtype=float)
+        if len(coords) == 0 or self.angle % 360 == 0:
+            return coords
+        return cv2.transform(coords[:, np.newaxis, :], self.rm_coords)[:, 0, :]
+
+    def apply_segmentation(self, segmentation):
+        segmentation = self.apply_image(segmentation, interp=cv2.INTER_NEAREST)
+        return segmentation
+
+    def create_rotation_matrix(self, offset=0):
+        center = (self.center[0] + offset, self.center[1] + offset)
+        rm = cv2.getRotationMatrix2D(tuple(center), self.angle, 1)
+        return rm
+
+    def __call__(self,results):
+        p = np.random.rand()
+        if p<0.5:
+            return results
+        self.angle = np.random.rand()*2*self.max_angle-self.max_angle
+        modality = results['modality']
+        if modality == 'RGB':
+            n = len(results['imgs'])
+            h, w, c = results['imgs'][0].shape
+            self.h = h
+            self.w = w
+            self.center = [w//2,h//2]
+            self.rm_coords = self.create_rotation_matrix()
+            self.rm_image = self.create_rotation_matrix(offset=-0.5)
+            imgs = np.empty((n, h, w, c), dtype=np.float32)
+            for i, img in enumerate(results['imgs']):
+                imgs[i] = self.apply_image(img)
+
+            results['imgs'] = imgs
+            return results
 
 
 @PIPELINES.register_module()
@@ -1700,6 +1986,199 @@ class ColorJitter:
         return repr_str
 
 
+#wj
+@PIPELINES.register_module()
+class VideoColorJitter:
+    #与上面的ColorJitter相比，同一视频里的图像执行相同的变换，而ColorJitter每一张图都执行不同的变换
+    """Randomly distort the brightness, contrast, saturation and hue of images,
+    and add PCA based noise into images.
+
+    Note: The input images should be in RGB channel order.
+
+    Code Reference:
+    https://gluon-cv.mxnet.io/_modules/gluoncv/data/transforms/experimental/image.html
+    https://mxnet.apache.org/api/python/docs/_modules/mxnet/image/image.html#LightingAug
+
+    If specified to apply color space augmentation, it will distort the image
+    color space by changing brightness, contrast and saturation. Then, it will
+    add some random distort to the images in different color channels.
+    Note that the input images should be in original range [0, 255] and in RGB
+    channel sequence.
+
+    Required keys are "imgs", added or modified keys are "imgs", "eig_val",
+    "eig_vec", "alpha_std" and "color_space_aug".
+
+    Args:
+        color_space_aug (bool): Whether to apply color space augmentations. If
+            specified, it will change the brightness, contrast, saturation and
+            hue of images, then add PCA based noise to images. Otherwise, it
+            will directly add PCA based noise to images. Default: False.
+        alpha_std (float): Std in the normal Gaussian distribution of alpha.
+        eig_val (np.ndarray | None): Eigenvalues of [1 x 3] size for RGB
+            channel jitter. If set to None, it will use the default
+            eigenvalues. Default: None.
+        eig_vec (np.ndarray | None): Eigenvectors of [3 x 3] size for RGB
+            channel jitter. If set to None, it will use the default
+            eigenvectors. Default: None.
+    """
+
+    def __init__(self,
+                 color_space_aug=False,
+                 alpha_std=0.0,
+                 eig_val=None,
+                 eig_vec=None):
+        if eig_val is None:
+            # note that the data range should be [0, 255]
+            self.eig_val = np.array([55.46, 4.794, 1.148], dtype=np.float32)
+        else:
+            self.eig_val = eig_val
+
+        if eig_vec is None:
+            self.eig_vec = np.array([[-0.5675, 0.7192, 0.4009],
+                                     [-0.5808, -0.0045, -0.8140],
+                                     [-0.5836, -0.6948, 0.4203]],
+                                    dtype=np.float32)
+        else:
+            self.eig_vec = eig_vec
+
+        self.alpha_std = alpha_std
+        self.color_space_aug = color_space_aug
+
+    @staticmethod
+    def brightness(img, delta,need_apply):
+        """Brightness distortion.
+
+        Args:
+            img (np.ndarray): An input image.
+            delta (float): Delta value to distort brightness.
+                It ranges from [-32, 32).
+
+        Returns:
+            np.ndarray: A brightness distorted image.
+        """
+        if need_apply:
+            img = img + np.float32(delta)
+        return img
+
+    @staticmethod
+    def contrast(img, alpha,need_apply):
+        """Contrast distortion.
+
+        Args:
+            img (np.ndarray): An input image.
+            alpha (float): Alpha value to distort contrast.
+                It ranges from [0.6, 1.4).
+
+        Returns:
+            np.ndarray: A contrast distorted image.
+        """
+        if need_apply:
+            img = img * np.float32(alpha)
+        return img
+
+    @staticmethod
+    def saturation(img, alpha,need_apply):
+        """Saturation distortion.
+
+        Args:
+            img (np.ndarray): An input image.
+            alpha (float): Alpha value to distort the saturation.
+                It ranges from [0.6, 1.4).
+
+        Returns:
+            np.ndarray: A saturation distorted image.
+        """
+        if need_apply:
+            gray = img * np.array([0.299, 0.587, 0.114], dtype=np.float32)
+            gray = np.sum(gray, 2, keepdims=True)
+            gray *= (1.0 - alpha)
+            img = img * alpha
+            img = img + gray
+        return img
+
+    @staticmethod
+    def hue(img, alpha,need_apply):
+        """Hue distortion.
+
+        Args:
+            img (np.ndarray): An input image.
+            alpha (float): Alpha value to control the degree of rotation
+                for hue. It ranges from [-18, 18).
+
+        Returns:
+            np.ndarray: A hue distorted image.
+        """
+        if need_apply:
+            u = np.cos(alpha * np.pi)
+            w = np.sin(alpha * np.pi)
+            bt = np.array([[1.0, 0.0, 0.0], [0.0, u, -w], [0.0, w, u]],
+                          dtype=np.float32)
+            tyiq = np.array([[0.299, 0.587, 0.114], [0.596, -0.274, -0.321],
+                             [0.211, -0.523, 0.311]],
+                            dtype=np.float32)
+            ityiq = np.array([[1.0, 0.956, 0.621], [1.0, -0.272, -0.647],
+                              [1.0, -1.107, 1.705]],
+                             dtype=np.float32)
+            t = np.dot(np.dot(ityiq, bt), tyiq).T
+            t = np.array(t, dtype=np.float32)
+            img = np.dot(img, t)
+        return img
+
+    def __call__(self, results):
+        imgs = results['imgs']
+        out = []
+        if self.color_space_aug:
+            bright_delta = np.random.uniform(-32, 32)
+            contrast_alpha = np.random.uniform(0.6, 1.4)
+            saturation_alpha = np.random.uniform(0.6, 1.4)
+            hue_alpha = np.random.uniform(-18, 18)
+            jitter_coin = np.random.rand()
+            need_any_apply = np.random.rand()>0.5
+            need_apply_brightness = np.random.rand()>0.5
+            need_apply_contrast = np.random.rand()>0.5
+            need_apply_saturation = np.random.rand()>0.5
+            need_apply_hue = np.random.rand()>0.5
+            if need_any_apply:
+                for img in imgs:
+                    img = self.brightness(img, delta=bright_delta,need_apply=need_apply_brightness)
+                    if jitter_coin > 0.5:
+                        img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
+                        img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
+                        img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
+                    else:
+                        img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
+                        img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
+                        img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
+                    out.append(img)
+            else:
+                out = imgs
+        else:
+            out = imgs
+
+        # Add PCA based noise
+        if self.alpha_std>1e-4:
+            alpha = np.random.normal(0, self.alpha_std, size=(3, ))
+            rgb = np.array(
+                np.dot(self.eig_vec * alpha, self.eig_val), dtype=np.float32)
+            rgb = rgb[None, None, ...]
+
+            results['imgs'] = [img + rgb for img in out]
+            results['eig_val'] = self.eig_val
+            results['eig_vec'] = self.eig_vec
+            results['alpha_std'] = self.alpha_std
+            results['color_space_aug'] = self.color_space_aug
+        else:
+            results['imgs'] = out
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'color_space_aug={self.color_space_aug}, '
+                    f'alpha_std={self.alpha_std}, '
+                    f'eig_val={self.eig_val}, '
+                    f'eig_vec={self.eig_vec})')
+        return repr_str
 @PIPELINES.register_module()
 class CenterCrop(RandomCrop):
     """Crop the center area from images.

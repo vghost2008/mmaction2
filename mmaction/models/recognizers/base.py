@@ -293,6 +293,8 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
         """
         imgs = data_batch['imgs']
         label = data_batch['label']
+        self.input_imgs = imgs
+        self.input_labels = label
 
         aux_info = {}
         for item in self.aux_info:
@@ -302,6 +304,7 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
         losses = self(imgs, label, return_loss=True, **aux_info)
 
         loss, log_vars = self._parse_losses(losses)
+        self.cur_losses = loss
 
         outputs = dict(
             loss=loss,
