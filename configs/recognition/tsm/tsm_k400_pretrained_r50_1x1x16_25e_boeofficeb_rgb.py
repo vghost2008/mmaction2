@@ -9,7 +9,8 @@ model = dict(
     cls_head=dict(num_classes=3, num_segments=16))
 
 # dataset settings
-dataset_type = 'RawframeDatasetWithBBoxes'
+#dataset_type = 'RawframeDatasetWithBBoxes'
+dataset_type = 'RawframeDataset'
 data_root = 'data/boeoffice/'
 data_root_val = 'data/boeoffice/'
 split = 1  # official train/test splits. valid numbers: 1, 2, 3
@@ -22,20 +23,15 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='SampleFrames', clip_len=1, frame_interval=1, num_clips=16),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',size=900,random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(
         type='MultiScaleCrop',
         input_size=224,
-        scales=(1.0, 0.96875, 0.9375, 0.90625, 0.875),
+        scales=(1, 0.875, 0.75, 0.66),
         random_crop=False,
-        max_wh_scale_gap=2,
+        max_wh_scale_gap=1,
         num_fixed_crops=13),
     dict(type='Resize', scale=(224, 224), keep_ratio=False),
-    dict(type='Flip'),
-    dict(type='VideoColorJitter',color_space_aug=True),
-    dict(type='Cutout'),
-    dict(type='RotationTransform',max_angle=20),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -49,7 +45,7 @@ val_pipeline = [
         num_clips=16,
         test_mode=True),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',size=900,random_crop=False),
+    dict(type='RandomCropAroundBBoxes',random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='CenterCrop', crop_size=224),
     dict(type='Normalize', **img_norm_cfg),
@@ -65,7 +61,7 @@ test_pipeline = [
         num_clips=16,
         test_mode=True),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',size=900,random_crop=False),
+    dict(type='RandomCropAroundBBoxes',random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='CenterCrop', crop_size=224),
     dict(type='Normalize', **img_norm_cfg),
@@ -104,4 +100,4 @@ total_epochs = 20
 
 load_from = "weights/tsm_r50_256p_1x1x8_50e_kinetics400_rgb_20200726-020785e2.pth"
 # runtime settings
-work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boeoffice/'
+work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boeofficeb/'

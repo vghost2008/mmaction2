@@ -1,9 +1,11 @@
 import random
+import time
+
 import imgaug.augmenters as iaa
 import warnings
 from collections.abc import Sequence
 from distutils.version import LooseVersion
-
+import img_utils as wmli
 import mmcv
 import numpy as np
 from torch.nn.modules.utils import _pair
@@ -695,19 +697,19 @@ class RandomCropAroundBBoxes:
         cy = (miny+maxy)/2
         size = min(min(img_h,img_w),self.size)
         if maxx-minx<self.size:
-            delta = (self.size-(maxx-minx))//4
+            delta = min(128,(self.size-(maxx-minx))//4)
             w = self.size
             if self.random_crop:
                 cx = cx+random.randint(-delta,delta)
         else:
-            w = min(size,maxx-minx)
+            w = min(img_w,maxx-minx)
         if maxy-miny<self.size:
-            delta = (self.size-(maxy-miny))//4
+            delta = min(128,(self.size-(maxy-miny))//4)
             if self.random_crop:
                 cy = cy+random.randint(-delta,delta)
             h = self.size
         else:
-            h = min(size,maxy-miny)
+            h = min(img_h,maxy-miny)
         #
         h = max(h,w)
         w = h
@@ -2026,7 +2028,8 @@ class VideoColorJitter:
                  color_space_aug=False,
                  alpha_std=0.0,
                  eig_val=None,
-                 eig_vec=None):
+                 eig_vec=None,
+                 gray_probability=0.1):
         if eig_val is None:
             # note that the data range should be [0, 255]
             self.eig_val = np.array([55.46, 4.794, 1.148], dtype=np.float32)
@@ -2043,6 +2046,7 @@ class VideoColorJitter:
 
         self.alpha_std = alpha_std
         self.color_space_aug = color_space_aug
+        self.gray_probability = gray_probability
 
     @staticmethod
     def brightness(img, delta,need_apply):
@@ -2128,28 +2132,38 @@ class VideoColorJitter:
         imgs = results['imgs']
         out = []
         if self.color_space_aug:
-            bright_delta = np.random.uniform(-32, 32)
-            contrast_alpha = np.random.uniform(0.6, 1.4)
-            saturation_alpha = np.random.uniform(0.6, 1.4)
-            hue_alpha = np.random.uniform(-18, 18)
-            jitter_coin = np.random.rand()
             need_any_apply = np.random.rand()>0.5
-            need_apply_brightness = np.random.rand()>0.5
-            need_apply_contrast = np.random.rand()>0.5
-            need_apply_saturation = np.random.rand()>0.5
-            need_apply_hue = np.random.rand()>0.5
             if need_any_apply:
-                for img in imgs:
-                    img = self.brightness(img, delta=bright_delta,need_apply=need_apply_brightness)
-                    if jitter_coin > 0.5:
-                        img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
-                        img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
-                        img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
+                need_trans_to_gray = np.random.rand() < self.gray_probability
+                if need_trans_to_gray:
+                    out = wmli.npbatch_rgb_to_gray(imgs,keep_channels=True)
+                else:
+                    bright_delta = np.random.uniform(-32, 32)
+                    contrast_alpha = np.random.uniform(0.6, 1.4)
+                    saturation_alpha = np.random.uniform(0.6, 1.4)
+                    #hue_alpha = np.random.uniform(-18, 18)
+                    hue_alpha = np.random.uniform(-12, 12)
+                    jitter_coin = np.random.rand()
+
+                    need_apply_brightness = np.random.rand() > 0.5
+                    need_apply_contrast = np.random.rand() > 0.5
+                    need_apply_saturation = np.random.rand() > 0.7
+                    if need_apply_saturation:
+                        need_apply_hue = np.random.rand() > 0.8
                     else:
-                        img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
-                        img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
-                        img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
-                    out.append(img)
+                        need_apply_hue = np.random.rand() > 0.6
+
+                    for img in imgs:
+                        img = self.brightness(img, delta=bright_delta,need_apply=need_apply_brightness)
+                        if jitter_coin > 0.5:
+                            img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
+                            img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
+                            img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
+                        else:
+                            img = self.saturation(img, alpha=saturation_alpha,need_apply=need_apply_saturation)
+                            img = self.hue(img, alpha=hue_alpha,need_apply=need_apply_hue)
+                            img = self.contrast(img, alpha=contrast_alpha,need_apply=need_apply_contrast)
+                        out.append(img)
             else:
                 out = imgs
         else:
