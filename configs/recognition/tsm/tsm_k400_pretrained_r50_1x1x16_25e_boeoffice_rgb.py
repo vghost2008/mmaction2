@@ -21,6 +21,7 @@ img_norm_cfg = dict(
 
 train_pipeline = [
     dict(type='SampleFrames', clip_len=1, frame_interval=1, num_clips=16),
+    dict(type='ReverseSequence',labels=[1,2]),
     dict(type='RawFrameDecode'),
     dict(type='RandomCropAroundBBoxes',size=900,random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
@@ -65,7 +66,6 @@ test_pipeline = [
         num_clips=16,
         test_mode=True),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',size=900,random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='CenterCrop', crop_size=224),
     dict(type='Normalize', **img_norm_cfg),
@@ -99,9 +99,9 @@ optimizer = dict(
     lr=0.00075,  # this lr is used for 8 gpus
 )
 # learning policy
-lr_config = dict(policy='step', step=[10, 20])
-total_epochs = 20
+lr_config = dict(policy='step', step=[2, 3])
+total_epochs = 4
 
 load_from = "weights/tsm_r50_256p_1x1x8_50e_kinetics400_rgb_20200726-020785e2.pth"
 # runtime settings
-work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boeoffice/'
+work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/tsm_k400_pretrained_r50_1x1x16_boeoffice/'

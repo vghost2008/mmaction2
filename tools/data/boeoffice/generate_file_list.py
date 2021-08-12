@@ -33,9 +33,10 @@ def write_file_list(file_path,file_list,shuffle=True):
 if __name__ == "__main__":
     repeat= {"0": 4, "1": 32, "2":40}
     root_dir = "/home/wj/ai/mldata/boeoffice"
-    train_save_path = os.path.join(root_dir,"train_rawframes.txt")
-    test_save_path = os.path.join(root_dir,"test_rawframes.txt")
-    file_list = get_all_type_files(root_dir,"training/images",repeat=repeat)
+    train_save_path = os.path.join(root_dir,"train_rawframes1.txt")
+    test_save_path = os.path.join(root_dir,"test_rawframes1.txt")
+    #file_list = get_all_type_files(root_dir,"training/images",repeat=repeat)
+    file_list = get_all_type_files(root_dir,"training/images")
     write_file_list(train_save_path,file_list)
     file_list = get_all_type_files(root_dir,"test/images")
     write_file_list(test_save_path,file_list)

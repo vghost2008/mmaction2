@@ -5,6 +5,8 @@ import warnings
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+
 import mmcv
 import torch
 from mmcv import Config, DictAction
@@ -17,6 +19,7 @@ from mmcv.runner.fp16_utils import wrap_fp16_model
 from mmaction.datasets import build_dataloader, build_dataset
 from mmaction.models import build_model
 from mmaction.utils import register_module_hooks
+
 
 # TODO import test functions from mmcv and delete them from mmaction2
 #wj
@@ -366,4 +369,8 @@ def main():
 
 if __name__ == '__main__':
     #0.4375
+    '''
+    example:
+    ./tools/test.py configs/recognition/tsm/tsm_k400_pretrained_r50_1x1x16_25e_boephone_rgb.py ./work_dirs/tsm_k400_pretrained_r50_1x1x16_25e_ucf101_rgb/epoch_120.pth --out results.pkl --eval top_k_accuracy mean_class_accuracy 
+    '''
     main()

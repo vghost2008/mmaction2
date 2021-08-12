@@ -19,7 +19,6 @@ from mmaction.datasets import build_dataset
 from mmaction.models import build_model
 from mmaction.utils import collect_env, get_root_logger, register_module_hooks
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a recognizer')
     parser.add_argument('config', help='train config file path')

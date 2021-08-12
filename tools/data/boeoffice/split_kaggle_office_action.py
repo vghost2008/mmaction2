@@ -37,7 +37,8 @@ def __save_action(ann_data,bboxes_data,img_dir,save_dir,type=None):
     if img_dir[-1] == "/":
         img_dir = img_dir[:-1]
     base_name = osp.basename(img_dir)
-    bboxes_data = bboxes_data[ann_data[1]:ann_data[2]+1]
+    if bboxes_data is not None:
+        bboxes_data = bboxes_data[ann_data[1]:ann_data[2]+1]
     if type is None:
         save_dir = osp.join(save_dir,f"{ann_data[0]}",base_name+f"_{ann_data[1]}_{ann_data[2]}")
     else:
@@ -54,15 +55,18 @@ def __save_action(ann_data,bboxes_data,img_dir,save_dir,type=None):
             if osp.exists(dst_path):
                 print(f"Remove {dst_path}")
                 os.remove(dst_path)
-
+            if not osp.exists(src_path):
+                print(f"ERROR: scr file {src_path} not exists.")
+                break
             os.link(src_path,dst_path)
-            bbox_data = bboxes_data[i]
-            bbox_data = bbox_data.split(",")
-            fp.write(f"{i+1}")
-            if len(bbox_data)>1:
-                for x in bbox_data[1:]:
-                    fp.write(","+x)
-            fp.write("\n")
+            if bboxes_data is not None:
+                bbox_data = bboxes_data[i]
+                bbox_data = bbox_data.split(",")
+                fp.write(f"{i+1}")
+                if len(bbox_data)>1:
+                    for x in bbox_data[1:]:
+                        fp.write(","+x)
+                fp.write("\n")
 
 def save_action(ann_data,bboxes_data,img_dir,save_dir,type=None):
     if ann_data[2]-ann_data[1]<MIN_FRAMES:
@@ -85,7 +89,7 @@ def split_dir(data_dir,save_dir,type="side_view"):
     bboxes_path = osp.join(osp.dirname(data_dir),base_name+"_bboxes.txt")
     bboxes_data = read_bboxes_data(bboxes_path)
     if bboxes_data is None:
-        return
+        print(f"WARNING: find bboxes data {bboxes_path} faild.")
     anns = read_ann(ann_path)
     if anns is None:
         return
@@ -99,9 +103,15 @@ def split_dirs(data_dir,save_dir,type):
             split_dir(cur_dir,save_dir,type)
 
 if __name__ == "__main__":
-    split_dirs("/home/wj/ai/mldata/kaggle_office_action/kaggle_office_action2/raw_frames",
+    '''split_dirs("/home/wj/ai/mldata/kaggle_office_action/kaggle_office_action2/raw_frames",
                "/home/wj/ai/mldata/kaggle_office_action/kaggle_office_action2/splited",
-               "side_view")
+               "side_view")'''
     '''split_dirs("/home/wj/ai/mldata/kaggle_office_action/kaggle_office_action/raw_frames",
                "/home/wj/ai/mldata/kaggle_office_action/kaggle_office_action/splited",
                "front_view")'''
+    '''split_dirs("/home/wj/ai/mldata/boeoffice/test_data/raw_frames",
+                "/home/wj/ai/mldata/boeoffice/test_data/splited",
+               "videos")'''
+    '''split_dirs("/home/wj/ai/mldata/kaggle_office_action/data3/raw_frames",
+                "/home/wj/ai/mldata/kaggle_office_action/data3/splited",
+               "videos")'''

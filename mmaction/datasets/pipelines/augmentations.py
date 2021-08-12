@@ -1,6 +1,6 @@
 import random
 import time
-
+from collections import Iterable
 import imgaug.augmenters as iaa
 import warnings
 from collections.abc import Sequence
@@ -1483,13 +1483,15 @@ class RandomRescale:
 
 @PIPELINES.register_module()
 class Cutout:
-    def __init__(self,nb_iterations=1,
+    def __init__(self,nb_iterations=(1,3),
                  position="uniform",
                  size=0.04,
                  squared=True,
                  fill_mode="constant",
                  cval=128,
-                 fill_per_channel=False):
+                 fill_per_channel=False,
+                 prob=0.5):
+        self.prob = prob
         self.cutout = iaa.Cutout(nb_iterations=nb_iterations,
                  position=position,
                  size=size,
@@ -1498,7 +1500,8 @@ class Cutout:
                  cval=cval,
                  fill_per_channel=fill_per_channel)
     def __call__(self, results):
-        results['imgs'] = self.cutout.augment_images(results['imgs'])
+        if np.random.rand()<self.prob:
+            results['imgs'] = self.cutout.augment_images(results['imgs'])
         return results
 
 @PIPELINES.register_module()
@@ -2616,3 +2619,52 @@ class MelSpectrogram:
                     f'n_mels={self.n_mels}, '
                     f'fixed_length={self.fixed_length})')
         return repr_str
+
+@PIPELINES.register_module()
+class ReverseSequence:
+    def __init__(self,labels=None,prob=0.5):
+        self.labels = labels
+        self.prob = prob
+    
+    def __call__(self,results):
+        assert 'label' in results, 'no label find.'
+        assert 'frame_inds' in results, 'no frame inds find.'
+
+        labels = results['label']
+        need_process = False
+        if self.labels is not None:
+            if isinstance(labels,Iterable):
+                for l in labels:
+                    if l in self.labels:
+                        need_process = True
+                        break
+            else:
+                if labels in self.labels:
+                    need_process = True
+        else:
+            need_process = True
+        
+        if not need_process:
+            return results
+        
+        pred = np.random.rand()<self.prob
+
+        if not pred:
+            return results
+
+        inds = list(results['frame_inds'])
+        inds.reverse()
+        results['frame_inds'] = np.array(list(inds))
+
+        return results
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}'
+                    f'(labels={self.labels}), '
+                    f'probs={self.prob}')
+        return repr_str
+        
+
+
+
+
+    

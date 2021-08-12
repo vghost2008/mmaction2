@@ -116,7 +116,9 @@ class RawframeDatasetWithBBoxes(BaseDataset):
             sample_by_class=sample_by_class,
             power=power,
             dynamic_length=dynamic_length)
-    def read_bboxes(self,path,total_frames):
+    
+    @staticmethod
+    def read_bboxes(path,total_frames):
         infos = []
         last_bboxes = [0.0,0.0,1.0,1.0]
         if not osp.exists(path):
@@ -143,6 +145,9 @@ class RawframeDatasetWithBBoxes(BaseDataset):
                     maxy = np.max(datas[:,3])
                     last_bboxes = [minx,miny,maxx,maxy]
                     infos.append(last_bboxes)
+        if len(infos)<=1:
+            print(f"WARNING: file {path} empty.")
+            return [last_bboxes]*total_frames
         return infos
 
     def load_annotations(self):

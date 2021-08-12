@@ -45,7 +45,6 @@ val_pipeline = [
         num_clips=16,
         test_mode=True),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='CenterCrop', crop_size=224),
     dict(type='Normalize', **img_norm_cfg),
@@ -61,7 +60,6 @@ test_pipeline = [
         num_clips=16,
         test_mode=True),
     dict(type='RawFrameDecode'),
-    dict(type='RandomCropAroundBBoxes',random_crop=False),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='CenterCrop', crop_size=224),
     dict(type='Normalize', **img_norm_cfg),
@@ -100,4 +98,4 @@ total_epochs = 20
 
 load_from = "weights/tsm_r50_256p_1x1x8_50e_kinetics400_rgb_20200726-020785e2.pth"
 # runtime settings
-work_dir = './work_dirs/tsm_k400_pretrained_r50_1x1x16_boeofficeb/'
+work_dir = '/home/wj/ai/tmp/mmaction/work_dirs/tsm_k400_pretrained_r50_1x1x16_boeofficeb/'

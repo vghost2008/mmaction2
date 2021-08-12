@@ -5,6 +5,7 @@ import wtorch.utils as torchu
 import numpy as np
 import os
 import random
+import shutil
 
 @HOOKS.register_module()
 class TBSummary(Hook):
@@ -17,6 +18,11 @@ class TBSummary(Hook):
         if runner.rank != 0:
             return
         log_dir = os.path.join(runner.work_dir,self.log_dir)
+
+        if 'log' in os.path.basename(log_dir) and os.path.exists(log_dir):
+            print(f"Remove dir {log_dir}.")
+            shutil.rmtree(log_dir)
+
         self.writer = SummaryWriter(log_dir)
 
     def after_iter(self, runner):

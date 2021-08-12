@@ -36,7 +36,7 @@ def init_recognizer(config,
     elif not isinstance(config, mmcv.Config):
         raise TypeError('config must be a filename or Config object, '
                         f'but got {type(config)}')
-    if ((use_frames and config.dataset_type != 'RawframeDataset')
+    if ((use_frames and config.dataset_type != 'RawframeDataset' and config.dataset_type != 'RawframeDatasetWithBBoxes')
             or (not use_frames and config.dataset_type != 'VideoDataset')):
         input_type = 'rawframes' if use_frames else 'video'
         raise RuntimeError('input data type should be consist with the '
@@ -249,7 +249,9 @@ def predict_recognizer(model,
 def predict_recognizerv2(model,
                          frames,
                          outputs=None,
-                         as_tensor=True):
+                         as_tensor=True,
+                         total_frames=None,
+                         bboxes=None):
     """Inference a video with the detector.
 
     Args:
@@ -278,15 +280,25 @@ def predict_recognizerv2(model,
     # prepare data
     modality = cfg.data.test.get('modality', 'RGB')
     start_index = cfg.data.test.get('start_index', 1)
+    filename_tmpl = cfg.data.test.get('filename_tmpl', 'img_{:05}.jpg')
 
     # count the number of frames that match the format of `filename_tmpl`
     # RGB pattern example: img_{:05}.jpg -> ^img_\d+.jpg$
     # Flow patteren example: {}_{:05d}.jpg -> ^x_\d+.jpg$
+    if not isinstance(frames,list) and os.path.isdir(str(frames)):
+        if total_frames is None:
+            print(f"ERROR: dir input need to set total_frames.")
+            return
+    else:
+        total_frames = len(frames)
+
     data = dict(
         frame_dir=frames,
-        total_frames=len(frames),
+        total_frames=total_frames,
         label=-1,
         start_index=start_index,
+        bboxes=bboxes,
+        filename_tmpl=filename_tmpl,
         modality=modality)
 
     data = test_pipeline(data)
@@ -304,3 +316,4 @@ def predict_recognizerv2(model,
     labels = np.argsort(scores)[::-1][0]
     scores = scores[labels]
     return labels,scores
+
