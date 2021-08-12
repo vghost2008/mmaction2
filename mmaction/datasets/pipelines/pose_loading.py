@@ -136,6 +136,41 @@ class UniformSampleFrames:
                     f'seed={self.seed})')
         return repr_str
 
+#wj
+@PIPELINES.register_module()
+class MultiPersonProcess:
+    def __init__(self,kp_nr = 17) -> None:
+        self.kp_nr = kp_nr
+
+    def __call__(self, results):
+        if 'keypoint_score' not in results or 'keypoint' not in results:
+            print(f"Find keypoint score and keypoint faild.")
+            return results
+        
+        frames_nr = len(results['keypoint'])
+        person_nr = 1
+        for i in range(frames_nr):
+            kp = results['keypoint'][i]
+            person_nr = max(person_nr,len(kp))
+        
+        all_keypoint = np.zeros([frames_nr,person_nr,self.kp_nr,2],dtype=np.float32)
+        all_scores = np.zeros([frames_nr,person_nr,self.kp_nr],dtype=np.float32)
+
+        for i in range(frames_nr):
+            scores = results['keypoint_score'][i]
+            kp = results['keypoint'][i]
+            if len(kp) > 0:
+                all_keypoint[i,:kp.shape[0]] = np.array(kp,dtype=np.float32)
+                all_scores[i,:scores.shape[0]] = np.array(scores,dtype=np.float32)
+
+        all_keypoint = np.transpose(all_keypoint,[1,0,2,3]) 
+        all_scores = np.transpose(all_scores,[1,0,2])
+
+        results['keypoint'] = all_keypoint
+        results['keypoint_score'] = all_scores
+
+        return results
+
 
 @PIPELINES.register_module()
 class PoseDecode:

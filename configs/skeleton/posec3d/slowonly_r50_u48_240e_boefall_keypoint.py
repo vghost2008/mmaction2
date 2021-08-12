@@ -25,12 +25,13 @@ model = dict(
     test_cfg=dict(average_clips='prob'))
 
 dataset_type = 'PoseDataset'
-ann_file_train = 'data/posec3d/gym_train.pkl'
-ann_file_val = 'data/posec3d/gym_val.pkl'
+ann_file_train = 'data/boefalldown/train_rawframes.pkl'
+ann_file_val = 'data/boefalldown/test_rawframes.pkl'
 left_kp = [1, 3, 5, 7, 9, 11, 13, 15]
 right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 train_pipeline = [
     dict(type='UniformSampleFrames', clip_len=48),
+    dict(type='MultiPersonProcess'),
     dict(type='PoseDecode'),
     dict(type='PoseCompact', hw_ratio=1., allow_imgpad=True),
     dict(type='Resize', scale=(-1, 64)),
@@ -119,11 +120,11 @@ evaluation = dict(
 log_config = dict(
     interval=20, hooks=[
         dict(type='TextLoggerHook'),
-        dict(type='TBSummary',log_dir='tblog',interval=200),
+        dict(type='TBSummary',log_dir='tblog',interval=20),
     ])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/posec3d/slowonly_r50_u48_240e_gym_keypoint'
-load_from = None
+work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/posec3d/slowonly_r50_u48_240e_gym_keypoint'
+load_from = "weights/slowonly_r50_u48_240e_gym_keypoint-b07a98a0.pth"
 resume_from = None
 find_unused_parameters = False
