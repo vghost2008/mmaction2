@@ -33,7 +33,7 @@ def write_file_list(save_path,datas,shuffle=False):
 
 if __name__ == "__main__":
     repeat = {"1":10}
-    repeat = {"1":1}
+    #repeat = {"1":1}
     root_dir = "/home/wj/ai/mldata/Le2i/FallDown"
     train_save_path = os.path.join(root_dir,"train_rawframes.pkl")
     test_save_path = os.path.join(root_dir,"test_rawframes.pkl")

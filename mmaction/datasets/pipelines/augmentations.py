@@ -1,3 +1,4 @@
+import copy
 import random
 import time
 from collections import Iterable
@@ -216,6 +217,7 @@ class PoseCompact:
 
         # Make NaN zero
         kp[np.isnan(kp)] = 0.
+        kp[kp<0] = 0.
         kp_x = kp[..., 0]
         kp_y = kp[..., 1]
 
@@ -258,6 +260,8 @@ class PoseCompact:
         new_crop_quadruple = (min_x / w, min_y / h, (max_x - min_x) / w,
                               (max_y - min_y) / h)
         crop_quadruple = _combine_quadruple(crop_quadruple, new_crop_quadruple)
+        if 'imgs' in results:
+            results['imgs'] = [x[min_y:max_y,min_x:max_x] for x in results['imgs']]
         results['crop_quadruple'] = crop_quadruple
         return results
 
@@ -1118,6 +1122,170 @@ class RandomResizedCrop(RandomCrop):
                     f'lazy={self.lazy})')
         return repr_str
 
+@PIPELINES.register_module()
+class RandomResizedCropKPAndImg(RandomCrop):
+    """Random crop that specifics the area and height-weight ratio range.
+
+    Required keys in results are "img_shape", "crop_bbox", "imgs" (optional),
+    "keypoint" (optional), added or modified keys are "imgs", "keypoint",
+    "crop_bbox" and "lazy"; Required keys in "lazy" are "flip", "crop_bbox",
+    added or modified key is "crop_bbox".
+
+    Args:
+        area_range (Tuple[float]): The candidate area scales range of
+            output cropped images. Default: (0.08, 1.0).
+        aspect_ratio_range (Tuple[float]): The candidate aspect ratio range of
+            output cropped images. Default: (3 / 4, 4 / 3).
+        lazy (bool): Determine whether to apply lazy operation. Default: False.
+    """
+
+    def __init__(self,
+                 area_range=(0.08, 1.0),
+                 aspect_ratio_range=(3 / 4, 4 / 3),
+                 lazy=False):
+        self.area_range = area_range
+        self.aspect_ratio_range = aspect_ratio_range
+        self.lazy = lazy
+        if not mmcv.is_tuple_of(self.area_range, float):
+            raise TypeError(f'Area_range must be a tuple of float, '
+                            f'but got {type(area_range)}')
+        if not mmcv.is_tuple_of(self.aspect_ratio_range, float):
+            raise TypeError(f'Aspect_ratio_range must be a tuple of float, '
+                            f'but got {type(aspect_ratio_range)}')
+
+    @staticmethod
+    def get_crop_bbox(img_shape,
+                      area_range,
+                      aspect_ratio_range,
+                      max_attempts=10):
+        """Get a crop bbox given the area range and aspect ratio range.
+
+        Args:
+            img_shape (Tuple[int]): Image shape
+            area_range (Tuple[float]): The candidate area scales range of
+                output cropped images. Default: (0.08, 1.0).
+            aspect_ratio_range (Tuple[float]): The candidate aspect
+                ratio range of output cropped images. Default: (3 / 4, 4 / 3).
+                max_attempts (int): The maximum of attempts. Default: 10.
+            max_attempts (int): Max attempts times to generate random candidate
+                bounding box. If it doesn't qualified one, the center bounding
+                box will be used.
+        Returns:
+            (list[int]) A random crop bbox within the area range and aspect
+            ratio range.
+        """
+        assert 0 < area_range[0] <= area_range[1] <= 1
+        assert 0 < aspect_ratio_range[0] <= aspect_ratio_range[1]
+
+        img_h, img_w = img_shape
+        area = img_h * img_w
+
+        min_ar, max_ar = aspect_ratio_range
+        aspect_ratios = np.exp(
+            np.random.uniform(
+                np.log(min_ar), np.log(max_ar), size=max_attempts))
+        target_areas = np.random.uniform(*area_range, size=max_attempts) * area
+        candidate_crop_w = np.round(np.sqrt(target_areas *
+                                            aspect_ratios)).astype(np.int32)
+        candidate_crop_h = np.round(np.sqrt(target_areas /
+                                            aspect_ratios)).astype(np.int32)
+
+        for i in range(max_attempts):
+            crop_w = candidate_crop_w[i]
+            crop_h = candidate_crop_h[i]
+            if crop_h <= img_h and crop_w <= img_w:
+                x_offset = random.randint(0, img_w - crop_w)
+                y_offset = random.randint(0, img_h - crop_h)
+                return x_offset, y_offset, x_offset + crop_w, y_offset + crop_h
+
+        # Fallback
+        crop_size = min(img_h, img_w)
+        x_offset = (img_w - crop_size) // 2
+        y_offset = (img_h - crop_size) // 2
+        return x_offset, y_offset, x_offset + crop_size, y_offset + crop_size
+    
+    def random_crop_kp(self,results,bboxes,img_shape):
+        if 'keypoint' not in results:
+            return results
+        img_h, img_w = results['img_shape_kp']
+
+        if bboxes is None:
+            left, top, right, bottom = self.get_crop_bbox(
+                (img_h, img_w), self.area_range, self.aspect_ratio_range)
+        else:
+            left, top, right, bottom = bboxes
+            h1,w1 = img_shape 
+            scale = [img_h/h1,img_w/w1]
+            left = int(left*scale[1])
+            right = int(right*scale[1])
+            top = int(top*scale[0])
+            bottom = int(bottom*scale[0])
+        new_h, new_w = bottom - top, right - left
+
+        crop_bbox = np.array([left, top, right, bottom])
+        results['img_shape_kp'] = (new_h, new_w)
+
+        results['keypoint'] = self._crop_kps(results['keypoint'],
+                                                     crop_bbox)
+
+        return results
+
+    def random_crop_imgs(self,results):
+        if 'imgs' not in results:
+            return results,None
+
+        img_h, img_w = results['img_shape']
+
+        left, top, right, bottom = self.get_crop_bbox(
+            (img_h, img_w), self.area_range, self.aspect_ratio_range)
+        new_h, new_w = bottom - top, right - left
+
+        if 'crop_quadruple' not in results:
+            results['crop_quadruple'] = np.array(
+                [0, 0, 1, 1],  # x, y, w, h
+                dtype=np.float32)
+
+        x_ratio, y_ratio = left / img_w, top / img_h
+        w_ratio, h_ratio = new_w / img_w, new_h / img_h
+
+        old_crop_quadruple = results['crop_quadruple']
+        old_x_ratio, old_y_ratio = old_crop_quadruple[0], old_crop_quadruple[1]
+        old_w_ratio, old_h_ratio = old_crop_quadruple[2], old_crop_quadruple[3]
+        new_crop_quadruple = [
+            old_x_ratio + x_ratio * old_w_ratio,
+            old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
+            h_ratio * old_x_ratio
+        ]
+        results['crop_quadruple'] = np.array(
+            new_crop_quadruple, dtype=np.float32)
+
+        crop_bbox = np.array([left, top, right, bottom])
+        results['crop_bbox'] = crop_bbox
+        results['img_shape'] = (new_h, new_w)
+
+        results['imgs'] = self._crop_imgs(results['imgs'], crop_bbox)
+
+        return results,[left,top,right,bottom]
+
+    def __call__(self, results):
+        """Performs the RandomResizeCrop augmentation.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        img_shape = results['img_shape']
+        results,bboxes = self.random_crop_imgs(results)
+        results = self.random_crop_kp(results,bboxes,img_shape)
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'area_range={self.area_range}, '
+                    f'aspect_ratio_range={self.aspect_ratio_range}, '
+                    f'lazy={self.lazy})')
+        return repr_str
 
 @PIPELINES.register_module()
 class MultiScaleCrop(RandomCrop):
@@ -1427,6 +1595,132 @@ class Resize:
                     f'lazy={self.lazy})')
         return repr_str
 
+@PIPELINES.register_module()
+class ResizeKPAndImg:
+    """Resize images to a specific size.
+
+    Required keys are "img_shape", "modality", "imgs" (optional), "keypoint"
+    (optional), added or modified keys are "imgs", "img_shape", "keep_ratio",
+    "scale_factor", "lazy", "resize_size". Required keys in "lazy" is None,
+    added or modified key is "interpolation".
+
+    Args:
+        scale (float | Tuple[int]): If keep_ratio is True, it serves as scaling
+            factor or maximum size:
+            If it is a float number, the image will be rescaled by this
+            factor, else if it is a tuple of 2 integers, the image will
+            be rescaled as large as possible within the scale.
+            Otherwise, it serves as (w, h) of output size.
+        keep_ratio (bool): If set to True, Images will be resized without
+            changing the aspect ratio. Otherwise, it will resize images to a
+            given size. Default: True.
+        interpolation (str): Algorithm used for interpolation:
+            "nearest" | "bilinear". Default: "bilinear".
+        lazy (bool): Determine whether to apply lazy operation. Default: False.
+    """
+
+    def __init__(self,
+                 scale_kp,
+                 scale_img,
+                 keep_ratio=True,
+                 interpolation='bilinear'):
+        if isinstance(scale_kp,tuple):
+            max_long_edge = max(scale_kp)
+            max_short_edge = min(scale_kp)
+            if max_short_edge == -1:
+                # assign np.inf to long edge for rescaling short edge later.
+                scale_kp = (np.inf, max_long_edge)
+
+        if isinstance(scale_img,tuple):
+            max_long_edge = max(scale_img)
+            max_short_edge = min(scale_img)
+            if max_short_edge == -1:
+                # assign np.inf to long edge for rescaling short edge later.
+                scale_img= (np.inf, max_long_edge)
+
+        self.scale_kp = scale_kp
+        self.scale_img = scale_img
+        self.keep_ratio = keep_ratio
+        self.interpolation = interpolation
+
+    def _resize_imgs(self, imgs, new_w, new_h):
+        try:
+            return [
+                mmcv.imresize(
+                    np.ascontiguousarray(img), (new_w, new_h), interpolation=self.interpolation)
+                for img in imgs
+            ]
+        except Exception as e:
+            print(e)
+            return imgs
+
+    @staticmethod
+    def _resize_kps(kps, scale_factor):
+        return kps * scale_factor
+
+    def resize_img(self,results,img_h,img_w):
+        if 'imgs' not in results:
+            return results
+        if 'scale_factor' not in results:
+            results['scale_factor'] = np.array([1, 1], dtype=np.float32)
+
+        if self.keep_ratio:
+            new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale_img)
+        else:
+            new_w, new_h = self.scale_img
+
+        self.scale_factor = np.array([new_w / img_w, new_h / img_h],
+                                     dtype=np.float32)
+
+        results['img_shape'] = (new_h, new_w)
+        results['keep_ratio'] = self.keep_ratio
+        results['scale_factor'] = results['scale_factor'] * self.scale_factor
+
+        results['imgs'] = self._resize_imgs(results['imgs'], new_w,
+                                            new_h)
+        return results
+
+    def resize_kp(self,results,img_h,img_w):
+
+        if self.keep_ratio:
+            new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale_kp)
+        else:
+            new_w, new_h = self.scale_kp
+
+        self.scale_factor = np.array([new_w / img_w, new_h / img_h],
+                                     dtype=np.float32)
+
+        results['img_shape_kp'] = (new_h, new_w)
+        results['keep_ratio'] = self.keep_ratio
+        results['scale_factor'] = results['scale_factor'] * self.scale_factor
+
+        results['keypoint'] = self._resize_kps(results['keypoint'],
+                                               self.scale_factor)
+
+        return results
+
+    def __call__(self, results):
+        """Performs the Resize augmentation.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        img_h, img_w = results['img_shape']
+
+        results = self.resize_img(results,img_h,img_w)
+        if 'img_shape_kp' in results:
+            img_h, img_w = results['img_shape_kp']
+        results = self.resize_kp(results,img_h,img_w)
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'scale_kp={self.scale_kp}, scale_img={self.scale_img}, keep_ratio={self.keep_ratio}, '
+                    f'interpolation={self.interpolation}, '
+                    f'lazy={self.lazy})')
+        return repr_str
 
 @PIPELINES.register_module()
 class RandomRescale:
@@ -1621,6 +1915,8 @@ class Flip:
                 if 'keypoint' in results:
                     kp = results['keypoint']
                     kpscore = results.get('keypoint_score', None)
+                    if 'img_shape_kp' in results:
+                        img_width = results['img_shape_kp'][1]
                     kp, kpscore = self._flip_kps(kp, kpscore, img_width)
                     results['keypoint'] = kp
                     if 'keypoint_score' in results:
@@ -1684,6 +1980,12 @@ class RotationTransform:
         return cv2.warpAffine(img, self.rm_image, (self.w, self.h), flags=interp)
 
     def apply_coords(self, coords):
+        old_shape = coords.shape
+        coords = np.reshape(coords,[-1,2])
+        coords = self.__apply_coords(coords)
+        coords = np.reshape(coords,old_shape)
+        return coords
+    def __apply_coords(self, coords):
         """
         coords should be a N * 2 array-like, containing N couples of (x, y) points
         """
@@ -1707,19 +2009,29 @@ class RotationTransform:
             return results
         self.angle = np.random.rand()*2*self.max_angle-self.max_angle
         modality = results['modality']
-        if modality == 'RGB':
+
+        h, w = results['img_shape']
+
+        if modality == 'RGB' or modality=='Pose':
             n = len(results['imgs'])
-            h, w, c = results['imgs'][0].shape
             self.h = h
             self.w = w
             self.center = [w//2,h//2]
-            self.rm_coords = self.create_rotation_matrix()
-            self.rm_image = self.create_rotation_matrix(offset=-0.5)
-            imgs = np.empty((n, h, w, c), dtype=np.float32)
-            for i, img in enumerate(results['imgs']):
-                imgs[i] = self.apply_image(img)
-
-            results['imgs'] = imgs
+            c = results['imgs'][0].shape[-1]
+            if 'imgs' in results:
+                self.rm_image = self.create_rotation_matrix(offset=-0.5)
+                img = results['imgs']
+                imgs = np.empty((n, h, w, c), dtype=np.float32)
+                for i, img in enumerate(results['imgs']):
+                    imgs[i] = self.apply_image(img)
+    
+                results['imgs'] = imgs
+            
+            if 'keypoint' in results:
+                self.rm_coords = self.create_rotation_matrix()
+                kps = results['keypoint']
+                kps = self.apply_coords(kps)
+                results['keypoint'] = kps
             return results
 
 
@@ -1759,6 +2071,20 @@ class Normalize:
         modality = results['modality']
 
         if modality == 'RGB':
+            n = len(results['imgs'])
+            h, w, c = results['imgs'][0].shape
+            imgs = np.empty((n, h, w, c), dtype=np.float32)
+            for i, img in enumerate(results['imgs']):
+                imgs[i] = img
+
+            for img in imgs:
+                mmcv.imnormalize_(img, self.mean, self.std, self.to_bgr)
+
+            results['imgs'] = imgs
+            results['img_norm_cfg'] = dict(
+                mean=self.mean, std=self.std, to_bgr=self.to_bgr)
+            return results
+        if modality == 'Pose' and 'imgs' in results:
             n = len(results['imgs'])
             h, w, c = results['imgs'][0].shape
             imgs = np.empty((n, h, w, c), dtype=np.float32)
@@ -2662,9 +2988,31 @@ class ReverseSequence:
                     f'(labels={self.labels}), '
                     f'probs={self.prob}')
         return repr_str
-        
 
 
+@PIPELINES.register_module()
+class RandomRemoveKP:
+    def __init__(self,remove_prob=0.3,max_remove_nr=3,kp_nr=17):
+        self.remove_prob = remove_prob
+        self.max_remove_nr = max_remove_nr
+        self.kp_nr = kp_nr
 
+    def __call__(self, results):
+        if 'keypoint' not in results:
+            print(f"WARNING: Find keypoint faild.")
+            return results
+        if np.random.rand()>self.remove_prob:
+            return results
 
-    
+        keypoints = copy.deepcopy(results['keypoint'])
+
+        for i in range(len(keypoints)):
+            nr = random.choice(list(range(1, self.max_remove_nr + 1)))
+            person_nr = len(keypoints[i])
+            for j in range(person_nr):
+                x = np.random.randint(0,self.kp_nr,nr)
+                keypoints[i][j][x] = 0
+
+        results['keypoint'] = keypoints
+
+        return results

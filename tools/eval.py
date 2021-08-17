@@ -22,7 +22,7 @@ data_file = "/home/wj/ai/mldata/boeoffice/train_rawframes1.txt"
 
 config_file = "configs/recognition/tsm/tsm_k400_pretrained_r50_1x1x16_25e_boefalldown_rgb.py"
 # download the checkpoint from model zoo and put it in `checkpoints/`
-checkpoint_file =  wmlu.home_dir("ai/mldata/training_data/mmaction/work_dirs/tsm_k400_pretrained_r50_1x1x16_boefalldown/epoch_5.pth")
+checkpoint_file =  wmlu.home_dir("ai/mldata/training_data/mmaction/work_dirs/tsm_k400_pretrained_r50_1x1x16_boefalldown/latest.pth")
 data_file = "/home/wj/ai/mldata/Le2i/FallDown/test_rawframes.txt"
 
 data_root = os.path.dirname(data_file)

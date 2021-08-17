@@ -2,7 +2,7 @@ import os.path as osp
 
 import mmcv
 import numpy as np
-
+import copy
 from ..utils import get_root_logger
 from .base import BaseDataset
 from .builder import DATASETS
@@ -42,6 +42,7 @@ class PoseDataset(BaseDataset):
                  valid_ratio=None,
                  box_thr=None,
                  class_prob=None,
+                 filename_tmpl='img_{:05}.jpg',
                  **kwargs):
         modality = 'Pose'
 
@@ -55,6 +56,7 @@ class PoseDataset(BaseDataset):
 
         # Thresholding Training Examples
         self.valid_ratio = valid_ratio
+        self.filename_tmpl= filename_tmpl
         if self.valid_ratio is not None:
             assert isinstance(self.valid_ratio, float)
             if self.box_thr is None:
@@ -90,9 +92,13 @@ class PoseDataset(BaseDataset):
 
     def load_pkl_annotations(self):
         data = mmcv.load(self.ann_file)
+        data_root = osp.dirname(self.ann_file)
+        data = [copy.deepcopy(x) for x in data]
 
         for item in data:
             # Sometimes we may need to load anno from the file
             if 'filename' in item:
                 item['filename'] = osp.join(self.data_prefix, item['filename'])
+            if 'frame_dir' in item:
+                item['frame_dir'] = osp.join(data_root,item['frame_dir'])
         return data

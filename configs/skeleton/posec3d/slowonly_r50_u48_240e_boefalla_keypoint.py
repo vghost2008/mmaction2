@@ -31,6 +31,7 @@ left_kp = [1, 3, 5, 7, 9, 11, 13, 15]
 right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 train_pipeline = [
     dict(type='UniformSampleFrames', clip_len=48),
+    dict(type='RandomRemoveKP'),
     dict(type='MultiPersonProcess'),
     dict(type='PoseDecode'),
     dict(type='PoseCompact', hw_ratio=1., allow_imgpad=True),
@@ -125,7 +126,7 @@ log_config = dict(
     ])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/posec3d/slowonly_r50_u48_240e_boefalldown_keypoint'
+work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/posec3d/slowonly_r50_u48_240e_boefalldowna_keypoint'
 load_from = "weights/slowonly_r50_u48_240e_gym_keypoint-b07a98a0.pth"
 total_epochs = 100
 resume_from = None

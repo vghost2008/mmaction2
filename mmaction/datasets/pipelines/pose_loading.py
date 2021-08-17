@@ -30,12 +30,13 @@ class UniformSampleFrames:
         seed (int): The random seed used during test time. Default: 255.
     """
 
-    def __init__(self, clip_len, num_clips=1, test_mode=False, seed=255):
+    def __init__(self, clip_len, num_clips=1, test_mode=False, seed=255,base_offset=0):
 
         self.clip_len = clip_len
         self.num_clips = num_clips
         self.test_mode = test_mode
         self.seed = seed
+        self.base_offset = base_offset
 
     def _get_train_clips(self, num_frames, clip_len):
         """Uniformly sample indices for training clips.
@@ -120,12 +121,18 @@ class UniformSampleFrames:
 
         inds = np.mod(inds, num_frames)
         start_index = results['start_index']
-        inds = inds + start_index
+        inds = inds + start_index+self.base_offset
 
-        results['frame_inds'] = inds.astype(np.int)
-        results['clip_len'] = self.clip_len
-        results['frame_interval'] = None
-        results['num_clips'] = self.num_clips
+        if 'frame_inds' not in results:
+            results['frame_inds'] = inds.astype(np.int)
+            results['clip_len'] = self.clip_len
+            results['frame_interval'] = None
+            results['num_clips'] = self.num_clips
+        else:
+            results['frame_inds1'] = inds.astype(np.int)
+            results['clip_len1'] = self.clip_len
+            results['frame_interval1'] = None
+            results['num_clips1'] = self.num_clips
         return results
 
     def __repr__(self):
@@ -621,7 +628,10 @@ class GeneratePoseTarget:
         else:
             all_kpscores = np.ones(kp_shape[:-1], dtype=np.float32)
 
-        img_h, img_w = results['img_shape']
+        if 'img_shape_kp' in results:
+            img_h, img_w = results['img_shape_kp']
+        else:
+            img_h, img_w = results['img_shape']
         num_frame = kp_shape[1]
 
         imgs = []
@@ -640,14 +650,18 @@ class GeneratePoseTarget:
         return imgs
 
     def __call__(self, results):
+        if 'imgs' in results:
+            key = 'imgs_kp'
+        else:
+            key = 'imgs'
         if not self.double:
-            results['imgs'] = np.stack(self.gen_an_aug(results))
+            results[key] = np.stack(self.gen_an_aug(results))
         else:
             results_ = cp.deepcopy(results)
             flip = Flip(
                 flip_ratio=1, left_kp=self.left_kp, right_kp=self.right_kp)
             results_ = flip(results_)
-            results['imgs'] = np.concatenate(
+            results[key] = np.concatenate(
                 [self.gen_an_aug(results),
                  self.gen_an_aug(results_)])
         return results

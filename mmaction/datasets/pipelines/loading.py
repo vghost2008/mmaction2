@@ -95,7 +95,7 @@ class SampleFrames:
             indexes. Available options are 'loop', 'repeat_last'.
             Default: 'loop'.
         test_mode (bool): Store True when building test or validation dataset.
-            Default: False.
+            PoseCompactDefault: False.
         start_index (None): This argument is deprecated and moved to dataset
             class (``BaseDataset``, ``VideoDatset``, ``RawframeDataset``, etc),
             see this: https://github.com/open-mmlab/mmaction2/pull/89.
@@ -1275,7 +1275,7 @@ class RawFrameDecode:
             del directory
             for frame_idx in results['frame_inds']:
                 frame_idx += offset
-                if modality == 'RGB':
+                if modality == 'RGB' or modality == 'Pose':
                     filepath = all_files[frame_idx-1]
                     img_bytes = self.file_client.get(filepath)
                     # Get frame with channel order RGB directly.
@@ -1284,9 +1284,14 @@ class RawFrameDecode:
                 else:
                     raise NotImplementedError
         else:    
-            for frame_idx in results['frame_inds']:
+            if modality == 'Pose':
+                idxs = results['frame_inds1']
+            else:
+                idxs = results['frame_inds']
+
+            for frame_idx in idxs:
                 frame_idx += offset
-                if modality == 'RGB':
+                if modality == 'RGB' or modality=='Pose':
                     filepath = osp.join(directory, filename_tmpl.format(frame_idx))
                     img_bytes = self.file_client.get(filepath)
                     # Get frame with channel order RGB directly.

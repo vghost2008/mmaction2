@@ -250,6 +250,8 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         results = copy.deepcopy(self.video_infos[idx])
         results['modality'] = self.modality
         results['start_index'] = self.start_index
+        if 'filename_tmpl' in self.__dict__:
+            results['filename_tmpl'] = self.filename_tmpl
 
         # prepare tensor in getitem
         # If HVU, type(results['label']) is dict
@@ -265,6 +267,8 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         results = copy.deepcopy(self.video_infos[idx])
         results['modality'] = self.modality
         results['start_index'] = self.start_index
+        if 'filename_tmpl' in self.__dict__:
+            results['filename_tmpl'] = self.filename_tmpl
 
         # prepare tensor in getitem
         # If HVU, type(results['label']) is dict

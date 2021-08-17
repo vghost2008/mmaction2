@@ -87,6 +87,7 @@ def train_model(model,
             find_unused_parameters=find_unused_parameters)
     else:
         #wj
+        print(cfg.gpu_ids)
         model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
         '''if len(cfg.gpu_ids) == 1:
             model = MMDataParallel(

@@ -5,6 +5,7 @@ import os.path as osp
 import time
 import warnings
 import sys
+#os.environ['CUDA_VISIBLE_DEVICES'] = "1,2"
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mmcv

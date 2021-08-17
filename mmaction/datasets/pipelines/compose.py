@@ -46,7 +46,11 @@ class Compose:
         """
 
         for t in self.transforms:
-            data = t(data)
+            try:
+                data = t(data)
+            except Exception as e:
+                print(e)
+                raise e
             if data is None:
                 return None
         return data

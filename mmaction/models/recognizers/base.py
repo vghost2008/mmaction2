@@ -139,7 +139,7 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
             self.neck.init_weights()
 
     @auto_fp16()
-    def extract_feat(self, imgs):
+    def extract_feat(self, imgs,**kwargs):
         """Extract features through a backbone.
 
         Args:
@@ -154,7 +154,7 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
         elif self.backbone_from == 'timm':
             x = self.backbone.forward_features(imgs)
         else:
-            x = self.backbone(imgs)
+            x = self.backbone(imgs,**kwargs)
         return x
 
     def average_clip(self, cls_score, num_segs=1):
@@ -293,6 +293,7 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
         """
         imgs = data_batch['imgs']
         label = data_batch['label']
+        
         self.input_imgs = imgs
         self.input_labels = label
 
