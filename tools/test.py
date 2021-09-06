@@ -38,7 +38,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='MMAction2 test (and eval) a model')
     parser.add_argument('config', help='test config file path')
-    parser.add_argument('checkpoint', help='checkpoint file')
+    parser.add_argument('checkpoint', default=None,help='checkpoint file')
     parser.add_argument(
         '--out',
         default=None,
@@ -157,6 +157,7 @@ def inference_pytorch(args, cfg, distributed, data_loader):
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
         wrap_fp16_model(model)
+    print(f"Load checkpoint {args.checkpoint}.")
     load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     if args.fuse_conv_bn:
@@ -345,6 +346,13 @@ def main():
     dataloader_setting = dict(dataloader_setting,
                               **cfg.data.get('test_dataloader', {}))
     data_loader = build_dataloader(dataset, **dataloader_setting)
+
+    if args.checkpoint is None:
+        args.checkpoint = os.path.join(cfg.work_dir,"latest.pth")
+        print(f"Use default checkpoint {args.checkpoint}")
+    elif not os.path.exists(args.checkpoint):
+        args.checkpoint = os.path.join(cfg.work_dir,args.checkpoint)
+        print(f"Use default checkpoint {args.checkpoint}")
 
     if args.tensorrt:
         outputs = inference_tensorrt(args.checkpoint, distributed, data_loader,

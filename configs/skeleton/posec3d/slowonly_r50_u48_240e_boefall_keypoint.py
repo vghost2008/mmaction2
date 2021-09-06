@@ -26,7 +26,7 @@ model = dict(
 
 dataset_type = 'PoseDataset'
 ann_file_train = 'data/boefalldown/train_rawframes.pkl'
-ann_file_val = 'data/boefalldown/test_rawframes.pkl'
+ann_file_val = 'data/boefalldown/test_rawframes3.pkl'
 left_kp = [1, 3, 5, 7, 9, 11, 13, 15]
 right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 train_pipeline = [

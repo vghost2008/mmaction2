@@ -52,13 +52,13 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 dataset_type = 'PoseDataset'
 ann_file_train = 'data/boefalldown/train_rawframes.pkl'
-ann_file_val = 'data/boefalldown/test_rawframes.pkl'
+ann_file_val = 'data/boefalldown/test_rawframes3.pkl'
 left_kp = [1, 3, 5, 7, 9, 11, 13, 15]
 right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 train_pipeline = [
     dict(type='UniformSampleFrames', clip_len=48),
-    dict(type='UniformSampleFrames', clip_len=8,base_offset=1),
-    dict(type='RandomRemoveKP',max_remove_nr=1),
+    dict(type='UniformSampleTailFrames', clip_len=8,base_offset=1,persent=0.25),
+    dict(type='RandomRemoveKP',max_remove_nr=2),
     dict(type='MultiPersonProcess'),
     dict(type='RawFrameDecode'),
     dict(type='PoseDecode'),
@@ -101,7 +101,7 @@ val_pipeline = [
 test_pipeline = [
     dict(
         type='UniformSampleFrames', clip_len=48, num_clips=1, test_mode=True),
-    dict(type='UniformSampleFrames', clip_len=8,base_offset=1),
+    dict(type='UniformSampleTailFrames', clip_len=8,base_offset=1,persent=0.25),
     dict(type='MultiPersonProcess'),
     dict(type='RawFrameDecode'),
     dict(type='PoseDecode'),
@@ -123,7 +123,7 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=16,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
         type=dataset_type,
@@ -163,7 +163,7 @@ log_config = dict(
     ])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/posec3d/slowonly_r50_u48_240e_boefalldown_fusion'
+work_dir = '/home/wj/ai/mldata/training_data/mmaction/work_dirs/posec3d/slowonly_r50_u48_240e_boefalldown_tail_fusion'
 load_from = None
 total_epochs = 100
 resume_from = None

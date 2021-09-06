@@ -34,12 +34,16 @@ class Recognizer3DV2(BaseRecognizer):
 
         return losses
 
-    def _do_test(self, imgs):
+    def _do_test(self, imgs,**kwargs):
         """Defines the computation performed at every call when evaluation,
         testing and gradcam."""
         batches = imgs.shape[0]
         num_segs = imgs.shape[1]
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
+        if 'imgs_kp' in kwargs:
+            td = kwargs['imgs_kp']
+            kwargs['imgs_kp'] = td.reshape((-1,)+td.shape[2:])
+            self.imgs_kp = kwargs['imgs_kp']
 
         if self.max_testing_views is not None:
             total_views = imgs.shape[0]
@@ -50,7 +54,8 @@ class Recognizer3DV2(BaseRecognizer):
             feats = []
             while view_ptr < total_views:
                 batch_imgs = imgs[view_ptr:view_ptr + self.max_testing_views]
-                x = self.extract_feat(batch_imgs)
+                batch_imgs_kp = self.imgs_kp[view_ptr:view_ptr + self.max_testing_views]
+                x = self.extract_feat(batch_imgs,imgs_kp=batch_imgs_kp)
                 if self.with_neck:
                     x, _ = self.neck(x)
                 feats.append(x)
@@ -65,7 +70,7 @@ class Recognizer3DV2(BaseRecognizer):
             else:
                 feat = torch.cat(feats)
         else:
-            feat = self.extract_feat(imgs)
+            feat = self.extract_feat(imgs,imgs_kp=self.imgs_kp)
             if self.with_neck:
                 feat, _ = self.neck(feat)
 
@@ -90,10 +95,10 @@ class Recognizer3DV2(BaseRecognizer):
         cls_score = self.average_clip(cls_score, num_segs)
         return cls_score
 
-    def forward_test(self, imgs):
+    def forward_test(self, imgs,**kwargs):
         """Defines the computation performed at every call when evaluation and
         testing."""
-        return self._do_test(imgs).cpu().numpy()
+        return self._do_test(imgs,**kwargs).cpu().numpy()
 
     def forward_dummy(self, imgs, softmax=False):
         """Used for computing network FLOPs.

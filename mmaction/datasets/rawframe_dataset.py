@@ -124,7 +124,11 @@ class RawframeDataset(BaseDataset):
         video_infos = []
         with open(self.ann_file, 'r') as fin:
             for line in fin:
-                line_split = line.strip().split()
+                line = line.strip()
+                if "#" in line:
+                    line_split = line.split("#")
+                else:
+                    line_split = line.split()
                 video_info = {}
                 idx = 0
                 # idx for frame_dir
@@ -133,15 +137,19 @@ class RawframeDataset(BaseDataset):
                     frame_dir = osp.join(self.data_prefix, frame_dir)
                 video_info['frame_dir'] = frame_dir
                 idx += 1
-                if self.with_offset:
-                    # idx for offset and total_frames
-                    video_info['offset'] = int(line_split[idx])
-                    video_info['total_frames'] = int(line_split[idx + 1])
-                    idx += 2
-                else:
-                    # idx for total_frames
-                    video_info['total_frames'] = int(line_split[idx])
-                    idx += 1
+                try:
+                    if self.with_offset:
+                        # idx for offset and total_frames
+                        video_info['offset'] = int(line_split[idx])
+                        video_info['total_frames'] = int(line_split[idx + 1])
+                        idx += 2
+                    else:
+                        # idx for total_frames
+                        video_info['total_frames'] = int(line_split[idx])
+                        idx += 1
+                except Exception as e:
+                    print(self.ann_file,line,line_split)
+                    raise e
                 # idx for label[s]
                 label = [int(x) for x in line_split[idx:]]
                 assert label, f'missing label in line: {line}'

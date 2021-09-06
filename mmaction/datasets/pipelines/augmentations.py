@@ -1660,6 +1660,7 @@ class ResizeKPAndImg:
 
     def resize_img(self,results,img_h,img_w):
         if 'imgs' not in results:
+            print("ERROR: find key imgs faild.")
             return results
         if 'scale_factor' not in results:
             results['scale_factor'] = np.array([1, 1], dtype=np.float32)
@@ -1706,6 +1707,8 @@ class ResizeKPAndImg:
             results (dict): The resulting dict to be modified and passed
                 to the next transform in pipeline.
         """
+        if 'scale_factor' not in results:
+            results['scale_factor'] = np.array([1, 1], dtype=np.float32)
         img_h, img_w = results['img_shape']
 
         results = self.resize_img(results,img_h,img_w)
@@ -2013,19 +2016,20 @@ class RotationTransform:
         h, w = results['img_shape']
 
         if modality == 'RGB' or modality=='Pose':
-            n = len(results['imgs'])
             self.h = h
             self.w = w
             self.center = [w//2,h//2]
-            c = results['imgs'][0].shape[-1]
             if 'imgs' in results:
-                self.rm_image = self.create_rotation_matrix(offset=-0.5)
-                img = results['imgs']
-                imgs = np.empty((n, h, w, c), dtype=np.float32)
-                for i, img in enumerate(results['imgs']):
-                    imgs[i] = self.apply_image(img)
-    
-                results['imgs'] = imgs
+                n = len(results['imgs'])
+                c = results['imgs'][0].shape[-1]
+                if 'imgs' in results:
+                    self.rm_image = self.create_rotation_matrix(offset=-0.5)
+                    img = results['imgs']
+                    imgs = np.empty((n, h, w, c), dtype=np.float32)
+                    for i, img in enumerate(results['imgs']):
+                        imgs[i] = self.apply_image(img)
+        
+                    results['imgs'] = imgs
             
             if 'keypoint' in results:
                 self.rm_coords = self.create_rotation_matrix()
@@ -3007,9 +3011,11 @@ class RandomRemoveKP:
         keypoints = copy.deepcopy(results['keypoint'])
 
         for i in range(len(keypoints)):
-            nr = random.choice(list(range(1, self.max_remove_nr + 1)))
             person_nr = len(keypoints[i])
             for j in range(person_nr):
+                nr = random.choice(list(range(0, self.max_remove_nr + 1)))
+                if 0 == nr:
+                    continue
                 x = np.random.randint(0,self.kp_nr,nr)
                 keypoints[i][j][x] = 0
 

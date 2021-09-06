@@ -8,7 +8,7 @@ import img_utils as wmli
 from PIL import Image
 import numpy as np
 
-dir_path = "/home/wj/ai/mldata/Le2i/FallDown/training/images/1/MultiCameras_chute06_cam8_675_925"
+dir_path = "/home/wj/ai/mldata/Le2i/FallDown/test3/images/0/adl-12-cam0"
 save_dir = "/home/wj/ai/mldata/SisFall/tmp"
 coco_part_labels = [
     'nose', 'eye_l', 'eye_r', 'ear_l', 'ear_r',

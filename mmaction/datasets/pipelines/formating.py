@@ -281,6 +281,9 @@ class FormatShape:
         imgs = results['imgs']
         # [M x H x W x C]
         # M = 1 * N_crops * N_clips * L
+        #wjn
+        #N_crops for example double in GeneratePoseTarget is true, then N_crops is 2
+        #N_clips is the num_clips in UniformSampleFrames, for example N_clips=10
         if self.collapse:
             assert results['num_clips'] == 1
 

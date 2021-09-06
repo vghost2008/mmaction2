@@ -32,7 +32,7 @@ class Recognizer3D(BaseRecognizer):
         """Defines the computation performed at every call when evaluation,
         testing and gradcam."""
         batches = imgs.shape[0]
-        num_segs = imgs.shape[1]
+        num_segs = imgs.shape[1]  #wjn num_segs is N_crops*N_clips
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
 
         if self.max_testing_views is not None:
@@ -80,7 +80,7 @@ class Recognizer3D(BaseRecognizer):
 
         # should have cls_head if not extracting features
         assert self.with_cls_head
-        cls_score = self.cls_head(feat)
+        cls_score = self.cls_head(feat) #cls_score is [num_segs,NUM_CLASSES]
         cls_score = self.average_clip(cls_score, num_segs)
         return cls_score
 

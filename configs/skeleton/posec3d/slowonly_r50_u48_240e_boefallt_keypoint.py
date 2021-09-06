@@ -31,7 +31,7 @@ left_kp = [1, 3, 5, 7, 9, 11, 13, 15]
 right_kp = [2, 4, 6, 8, 10, 12, 14, 16]
 train_pipeline = [
     dict(type='UniformSampleFrames', clip_len=48),
-    dict(type='RandomRemoveKP',max_remove_nr=1),
+    dict(type='RandomRemoveKP'),
     dict(type='MultiPersonProcess'),
     dict(type='PoseDecode'),
     dict(type='PoseCompact', hw_ratio=1., allow_imgpad=True),
