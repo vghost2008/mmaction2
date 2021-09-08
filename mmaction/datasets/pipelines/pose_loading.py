@@ -107,7 +107,7 @@ class UniformSampleFrames:
             all_inds = []
             for i in range(self.num_clips):
                 offset = np.random.randint(bsize)
-                all_inds.append(bst + offset)
+                all_inds.append(bst + offset+self.base_offset)
             inds = np.concatenate(all_inds)
         return inds
 

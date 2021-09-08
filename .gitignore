@@ -132,3 +132,5 @@ work_dirs/
 # avoid soft links created by MIM
 mmaction/configs/*
 mmaction/tools/*
+boeweights
+weights

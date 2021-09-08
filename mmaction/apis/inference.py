@@ -36,13 +36,13 @@ def init_recognizer(config,
     elif not isinstance(config, mmcv.Config):
         raise TypeError('config must be a filename or Config object, '
                         f'but got {type(config)}')
-    if ((use_frames and config.dataset_type != 'RawframeDataset' and config.dataset_type != 'RawframeDatasetWithBBoxes')
+    '''if ((use_frames and config.dataset_type != 'RawframeDataset' and config.dataset_type != 'RawframeDatasetWithBBoxes')
             or (not use_frames and config.dataset_type != 'VideoDataset')):
         input_type = 'rawframes' if use_frames else 'video'
         raise RuntimeError('input data type should be consist with the '
                            f'dataset type in config, but got input type '
                            f"'{input_type}' and dataset type "
-                           f"'{config.dataset_type}'")
+                           f"'{config.dataset_type}'")'''
 
     # pretrained model is unnecessary since we directly load checkpoint later
     config.model.backbone.pretrained = None

@@ -1380,6 +1380,67 @@ class ImageDecode:
         results['img_shape'] = imgs[0].shape[:2]
         return results
 
+@PIPELINES.register_module()
+class GetImages:
+    """Load and decode frames with given indices.
+
+    Required keys are "frame_dir", "filename_tmpl" and "frame_inds",
+    added or modified keys are "imgs", "img_shape" and "original_shape".
+
+    Args:
+        io_backend (str): IO backend where frames are stored. Default: 'disk'.
+        decoding_backend (str): Backend used for image decoding.
+            Default: 'cv2'.
+        kwargs (dict, optional): Arguments for FileClient.
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, results):
+        """Perform the ``RawFrameDecode`` to pick frames given indices.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+
+        imgs = list()
+        all_images = results['raw_images']
+
+        if results['frame_inds'].ndim != 1:
+            results['frame_inds'] = np.squeeze(results['frame_inds'])
+
+        offset = results.get('offset', 0)
+        #wj
+        for frame_idx in results['frame_inds']:
+            frame_idx += offset
+            cur_frame = all_images[frame_idx-1]
+            imgs.append(cur_frame)
+
+        results['imgs'] = imgs
+        results['original_shape'] = imgs[0].shape[:2]
+        results['img_shape'] = imgs[0].shape[:2]
+
+        # we resize the gt_bboxes and proposals to their real scale
+        if 'gt_bboxes' in results:
+            h, w = results['img_shape']
+            scale_factor = np.array([w, h, w, h])
+            gt_bboxes = results['gt_bboxes']
+            gt_bboxes = (gt_bboxes * scale_factor).astype(np.float32)
+            results['gt_bboxes'] = gt_bboxes
+            if 'proposals' in results and results['proposals'] is not None:
+                proposals = results['proposals']
+                proposals = (proposals * scale_factor).astype(np.float32)
+                results['proposals'] = proposals
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'io_backend={self.io_backend}, '
+                    f'decoding_backend={self.decoding_backend})')
+        return repr_str
 
 @PIPELINES.register_module()
 class AudioDecodeInit:

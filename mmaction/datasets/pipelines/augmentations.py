@@ -1780,7 +1780,7 @@ class RandomRescale:
 
 @PIPELINES.register_module()
 class Cutout:
-    def __init__(self,nb_iterations=(1,3),
+    def __init__(self,nb_iterations=(0,3),
                  position="uniform",
                  size=0.04,
                  squared=True,

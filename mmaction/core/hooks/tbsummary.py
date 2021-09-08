@@ -38,6 +38,9 @@ class TBSummary(Hook):
         std=[58.395, 57.12, 57.375]
         imgs = runner.model.module.input_imgs.cpu()[:self.max_img_output]
         idx = random.randint(0,imgs.shape[0]-1)
+
+        if imgs[idx].numel()<=1:
+            print(f"Error imgs numel {imgs[idx].numel()} {imgs.size()}")
         self.writer.add_histogram("input_imgs",imgs[idx],global_step=global_step,bins=20)
         if len(imgs.size()) == 6:
             imgs = torch.sum(imgs,2)
