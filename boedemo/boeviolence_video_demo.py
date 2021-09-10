@@ -100,9 +100,10 @@ class Model(IntervalMode):
 
 if __name__ == "__main__":
     model = Model()
-    vd = VideoDemo(model,save_path="tmp.mp4",buffer_size=100,show_video=True)
+    vd = VideoDemo(model,save_path="tmp.mp4",buffer_size=100,show_video=False)
     vd.preprocess = model.preprocess
     video_path = None
+    video_path = "/home/wj/ai/mldata/boeviolence/RWF2000/RWF-2000/train/Fight/4RqDG4I4iAk_0.avi"
     if len(sys.argv)>1:
         video_path = sys.argv[1]
     vd.inference_loop(video_path)

@@ -86,6 +86,8 @@ class SampleFrames:
         frame_interval (int): Temporal interval of adjacent sampled frames.
             Default: 1.
         num_clips (int): Number of clips to be sampled. Default: 1.
+            #wjn
+            frames split to num_clips and random sample one frame frome each split.
         temporal_jitter (bool): Whether to apply temporal jittering.
             Default: False.
         twice_sample (bool): Whether to use twice sample when testing.
@@ -207,6 +209,7 @@ class SampleFrames:
                 to the next transform in pipeline.
         """
         total_frames = results['total_frames']
+        total_frames = 1000
 
         clip_offsets = self._sample_clips(total_frames)
         frame_inds = clip_offsets[:, None] + np.arange(
